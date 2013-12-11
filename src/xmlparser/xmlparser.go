@@ -17,16 +17,23 @@ const (
     ISO   = "ISO-8859-1"
 )
 
+type userDataStructure struct {
+    hooker *XmlParserHooker
+    data interface{}
+}
+
+//use this variable to pin the user data pointer in case that GC will free
+//the data after passing it to the expat
+var pinUserData *userDataStructure
+
 type XmlParser struct {
     parserHandler C.XML_Parser
-    hooker Hooker
-    handlerMap map[string]interface{}
+    hooker *XmlParserHooker
 }
 
 func NewXmlParser() *XmlParser {
     parser := XmlParser{}
-    parser.handlerMap = make(map[string]interface{})
-    parser.hooker = XmlParserHooker{}
+    parser.hooker = &XmlParserHooker{handlerMap:make(map[string]interface{})}
     return &parser
 }
 
@@ -49,7 +56,8 @@ func (self *XmlParser) Create( encoding string ) error {
 
     x := self.stringToXML_Char( encoding )
     self.parserHandler = C.XML_ParserCreate(x)
-    C.XML_SetUserData(self.parserHandler, unsafe.Pointer(self))
+    pinUserData = &userDataStructure{hooker:self.hooker}
+    C.XML_SetUserData(self.parserHandler, unsafe.Pointer(pinUserData))
     return nil
 }
 
@@ -75,16 +83,24 @@ func (self *XmlParser) Parse( data string ) error {
     return nil
 }
 
-func (self *XmlParser) SetStartElementHandler(handler StartElementHandler) {
-    self.hooker.Hook(self, handler)
-    self.handlerMap["start_ele_handler"] = interface{}(handler)
+func (self *XmlParser) SetUserData(data interface{}) error {
+    return nil
+}
+
+func (self *XmlParser) SetStartElementHandler(handler StartElementHandler) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = start_ele_handler
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
 }
 
 func (self *XmlParser) SetEndElementHandler(handler EndElementHandler) error {
-    err := self.hooker.Hook(self, handler)
-    if err != nil {
-        return err;
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = end_ele_handler
+        handlerData = null_handler
     }
-    self.handlerMap["end_ele_handler"] = interface{}(handler)
-    return nil
+    return self.hooker.Hook(self, handlerData)
 }

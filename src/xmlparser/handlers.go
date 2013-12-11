@@ -1,6 +1,7 @@
 package xmlparser
 
 /*
+#cgo LDFLAGS: -lexpat
 #include <expat.h>
 extern int getExpatArrayLen( char** data );
 extern void hookStartElementHandler(XML_Parser parser);
@@ -17,9 +18,15 @@ import (
     _ "fmt"
 )
 
-type Hooker interface {
-    Hook(parser interface{}, handler interface{}) error
+const (
+    start_ele_handler = "start_ele_handler"
+    end_ele_handler = "end_ele_handler"
+)
+
+type NullHandler struct {
+    name string
 }
+var null_handler = NullHandler{}
 
 type StartElementHandler interface {
     HandleStartEle(userData interface{}, name string, attrs map[string]string)
@@ -29,16 +36,15 @@ type EndElementHandler interface {
     HandleEndEle(userData interface{}, name string)
 }
 
-
 type XmlParserHooker struct {
+    handlerMap map[string]interface{}
 }
-
 //export InternalEndElementHandler
 func InternalEndElementHandler(userData unsafe.Pointer, name *C.XML_Char) {
-    parser := (*XmlParser)(userData)
+    ud := (*userDataStructure)(userData)
     cname := (*C.char)(name)
 
-    handler, ok := parser.handlerMap["end_ele_handler"]
+    handler, ok := ud.hooker.handlerMap[end_ele_handler]
     if !ok || handler == nil {
         log.Print( "end element handler not defined" )
         return
@@ -50,12 +56,12 @@ func InternalEndElementHandler(userData unsafe.Pointer, name *C.XML_Char) {
         return
     }
 
-    finalHandler.HandleEndEle(parser, C.GoString(cname))
+    finalHandler.HandleEndEle(ud.data, C.GoString(cname))
 }
 
 //export InternalStartElementHandler
 func InternalStartElementHandler(userData unsafe.Pointer,  name *C.XML_Char, attrs **C.XML_Char) {
-    parser := (*XmlParser)(userData)
+    ud := (*userDataStructure)(userData)
     cname := (*C.char)(name)
     cattrs := (**C.char)(unsafe.Pointer(attrs))
 
@@ -75,7 +81,7 @@ func InternalStartElementHandler(userData unsafe.Pointer,  name *C.XML_Char, att
         i = i + 2
     }
 
-    handler, ok := parser.handlerMap["start_ele_handler"]
+    handler, ok := ud.hooker.handlerMap[start_ele_handler]
     if !ok || handler == nil {
         log.Println( "start element handler not defined" )
         return
@@ -87,34 +93,45 @@ func InternalStartElementHandler(userData unsafe.Pointer,  name *C.XML_Char, att
         return
     }
 
-    finalHandler.HandleStartEle(parser, C.GoString(cname), attrsMap)
+    finalHandler.HandleStartEle(ud.data, C.GoString(cname), attrsMap)
 }
 
-func (self XmlParserHooker) Hook(parser interface{}, handler interface{}) error {
+func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error {
     if parser == nil {
         return errors.New( "parameters cannot be nil" )
     }
 
-    myParser, ok := parser.(*XmlParser)
-    if !ok {
-        return errors.New( "the first argument shall be type of *XmlParser" )
-    }
-
-    switch handler.(type) {
-    case StartElementHandler:
-        if handler == nil {
-            C.hookStartElementHandler(myParser.parserHandler)
-        } else {
-            C.unhookStartElementHandler(myParser.parserHandler)
+    nullHandler, ok := handler.(NullHandler)
+    if ok {
+        unhookHandler, ok := self.handlerMap[nullHandler.name]
+        if !ok {
+            return errors.New( "no registered handler" )
         }
-    case EndElementHandler:
-        if handler == nil {
-            C.hookEndElementHandler(myParser.parserHandler)
-        } else {
-            C.unhookEndElementHandler(myParser.parserHandler)
+        var key string
+        switch unhookHandler.(type) {
+        case StartElementHandler:
+            C.unhookStartElementHandler(parser.parserHandler)
+            key = start_ele_handler
+        case EndElementHandler:
+            C.unhookEndElementHandler(parser.parserHandler)
+            key = end_ele_handler
+        default:
+            return errors.New( "unsupported handler type" )
         }
-    default:
-        return errors.New( "unsupported handler type" )
+        delete(self.handlerMap, key)
+    } else {
+        var key string
+        switch handler.(type) {
+        case StartElementHandler:
+            C.hookStartElementHandler(parser.parserHandler)
+            key = start_ele_handler
+        case EndElementHandler:
+            key = end_ele_handler
+            C.hookEndElementHandler(parser.parserHandler)
+        default:
+            return errors.New( "unsupported handler type" )
+        }
+        self.handlerMap[key] = handler
     }
 
     return nil

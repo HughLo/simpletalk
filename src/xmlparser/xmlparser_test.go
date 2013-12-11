@@ -6,14 +6,14 @@ import "log"
 type parser_handler struct {
 }
 
-func (self *parser_handler) HandleStartEle(userData interface{}, name string, attrs map[string]string) {
+func (self parser_handler) HandleStartEle(userData interface{}, name string, attrs map[string]string) {
     log.Print("<"+name+">")
     for key, val := range attrs {
         log.Print( key + ":" + val)
     }
 }
 
-func (self *parser_handler) HandleEndEle(userData interface{}, name string) {
+func (self parser_handler) HandleEndEle(userData interface{}, name string) {
     log.Print( "</"+name+">" )
 }
 
@@ -39,8 +39,8 @@ func TestParse( t *testing.T ) {
     parser := NewXmlParser()
     handler := new(parser_handler)
     parser.Create(UTF8)
-    parser.SetStartElementHandler(&handler)
-    parser.SetEndElementHandler(&handler)
+    parser.SetStartElementHandler(handler)
+    parser.SetEndElementHandler(handler)
     parser.Parse(data)
     parser.Free()
 }
