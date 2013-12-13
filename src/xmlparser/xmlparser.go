@@ -22,13 +22,10 @@ type userDataStructure struct {
     data interface{}
 }
 
-//use this variable to pin the user data pointer in case that GC will free
-//the data after passing it to the expat
-var pinUserData *userDataStructure
-
 type XmlParser struct {
     parserHandler C.XML_Parser
     hooker *XmlParserHooker
+    pinUserData *userDataStructure
 }
 
 func NewXmlParser() *XmlParser {
@@ -56,8 +53,8 @@ func (self *XmlParser) Create( encoding string ) error {
 
     x := self.stringToXML_Char( encoding )
     self.parserHandler = C.XML_ParserCreate(x)
-    pinUserData = &userDataStructure{hooker:self.hooker}
-    C.XML_SetUserData(self.parserHandler, unsafe.Pointer(pinUserData))
+    self.pinUserData = &userDataStructure{hooker:self.hooker}
+    C.XML_SetUserData(self.parserHandler, unsafe.Pointer(self.pinUserData))
     return nil
 }
 
@@ -83,8 +80,9 @@ func (self *XmlParser) Parse( data string ) error {
     return nil
 }
 
-func (self *XmlParser) SetUserData(data interface{}) error {
-    return nil
+func (self *XmlParser) SetUserData(data interface{}) {
+    self.pinUserData.data = data
+    C.XML_SetUserData(self.parserHandler, unsafe.Pointer(self.pinUserData))
 }
 
 func (self *XmlParser) SetStartElementHandler(handler StartElementHandler) error {

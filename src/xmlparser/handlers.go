@@ -28,13 +28,8 @@ type NullHandler struct {
 }
 var null_handler = NullHandler{}
 
-type StartElementHandler interface {
-    HandleStartEle(userData interface{}, name string, attrs map[string]string)
-}
-
-type EndElementHandler interface {
-    HandleEndEle(userData interface{}, name string)
-}
+type StartElementHandler func(interface{}, string, map[string]string)
+type EndElementHandler func(interface{}, string)
 
 type XmlParserHooker struct {
     handlerMap map[string]interface{}
@@ -56,7 +51,7 @@ func InternalEndElementHandler(userData unsafe.Pointer, name *C.XML_Char) {
         return
     }
 
-    finalHandler.HandleEndEle(ud.data, C.GoString(cname))
+    finalHandler(ud.data, C.GoString(cname))
 }
 
 //export InternalStartElementHandler
@@ -93,7 +88,7 @@ func InternalStartElementHandler(userData unsafe.Pointer,  name *C.XML_Char, att
         return
     }
 
-    finalHandler.HandleStartEle(ud.data, C.GoString(cname), attrsMap)
+    finalHandler(ud.data, C.GoString(cname), attrsMap)
 }
 
 func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error {
@@ -126,8 +121,8 @@ func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error 
             C.hookStartElementHandler(parser.parserHandler)
             key = start_ele_handler
         case EndElementHandler:
-            key = end_ele_handler
             C.hookEndElementHandler(parser.parserHandler)
+            key = end_ele_handler
         default:
             return errors.New( "unsupported handler type" )
         }
