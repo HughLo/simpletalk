@@ -9,7 +9,8 @@ mongoDB. SimpleTalk is based on XMPP technology.
 
 Depency
 -----------------------------
-This project currenlty depends on mgo
+* mgo:wrapper for mongoDB
+* expat:streaming xml parser
 
 Status
 -----------------------------
