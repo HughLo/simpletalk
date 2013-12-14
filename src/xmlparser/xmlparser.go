@@ -74,7 +74,7 @@ func (self *XmlParser) Parse( data string ) error {
 
     retStatus := C.XML_Parse(self.parserHandler, cdata, C.int(clen), C.int(0))
     if retStatus != C.XML_STATUS_OK {
-        return errors.New( "parser error" )
+        return self
     }
 
     return nil
@@ -101,4 +101,10 @@ func (self *XmlParser) SetEndElementHandler(handler EndElementHandler) error {
         handlerData = null_handler
     }
     return self.hooker.Hook(self, handlerData)
+}
+
+func (self *XmlParser) Error() string {
+    errCode := C.XML_GetErrorCode(self.parserHandler)
+    errStr := C.XML_ErrorString(errCode)
+    return C.GoString((*C.char)(errStr))
 }

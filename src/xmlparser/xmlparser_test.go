@@ -3,22 +3,6 @@ package xmlparser
 import "testing"
 import "log"
 
-func HandleStartEle(userData interface{}, name string, attrs map[string]string) {
-    log.Print("<"+name+">")
-    for key, val := range attrs {
-        log.Print( key + ":" + val)
-    }
-}
-
-func HandleEndEle(userData interface{}, name string) {
-    _, ok := userData.(*testing.T)
-    if !ok {
-        log.Fatalln( "HandleEndEle user data is not of type userDataStructure" )
-    }
-
-    log.Printf( "/name: %s\n", name )
-}
-
 type xmlParserTestHassle struct {
     parser *XmlParser
     data []*string
@@ -36,13 +20,7 @@ func (self *xmlParserTestHassle) DestroyHassle() {
     }
 }
 
-
-func TestParse( t *testing.T ) {
-    testHassle := new(xmlParserTestHassle)
-    testHassle.SetupHassle()
-    defer testHassle.DestroyHassle()
-
-    data := `
+var xmlData string = `
 		<Person type="test">
 			<FullName>Grace R. Emlin</FullName>
 			<Company>Example Inc.</Company>
@@ -60,10 +38,94 @@ func TestParse( t *testing.T ) {
 			<State>Easter Island</State>
 		</Person>
 	`
-    testHassle.parser.SetStartElementHandler(HandleStartEle)
-    testHassle.parser.SetEndElementHandler(HandleEndEle)
-    testHassle.parser.SetUserData(t)
-    testHassle.parser.Parse(data)
+var xmlDataForUserData string = "<test></test>"
+
+//TestParseWhole tests the entire xml parsing ability
+func TestParseWhole( t *testing.T ) {
+    testHassle := new(xmlParserTestHassle)
+    testHassle.SetupHassle()
+    defer testHassle.DestroyHassle()
+
+    startEleHandler := func (userData interface{}, name string, attrs map[string]string) {
+        log.Print("<"+name+">")
+        for key, val := range attrs {
+            log.Print( key + ":" + val)
+        }
+    }
+    endEleHandler := func (userData interface{}, name string) {
+        log.Printf( "</%s>\n", name )
+    }
+
+    testHassle.parser.SetStartElementHandler(startEleHandler)
+    testHassle.parser.SetEndElementHandler(endEleHandler)
+    testHassle.parser.Parse(xmlData)
+}
+
+//TestUserData tests user data can work fine
+func TestUserData( t *testing.T ) {
+    testHassle := new(xmlParserTestHassle)
+    testHassle.SetupHassle()
+    defer testHassle.DestroyHassle()
+
+    var result string
+    startEleHandler := func(userData interface{}, name string, attrs map[string]string) {
+        if userData == nil {
+            result = "empty"
+            return
+        }
+
+        data, ok := userData.(*string)
+        if !ok {
+            result = "mismatch"
+            return
+        }
+
+        result = *data
+    }
+
+    endEleHandler := func(userData interface{}, name string) {
+        if userData == nil {
+            result = "empty"
+            return
+        }
+
+        data, ok := userData.(*string)
+        if !ok {
+            result = "mismatch"
+            return
+        }
+
+        result = *data
+    }
+
+    testUserData := "test user data"
+    testHassle.parser.SetUserData(&testUserData)
+    testHassle.parser.SetStartElementHandler(startEleHandler)
+    testHassle.parser.SetEndElementHandler(endEleHandler)
+
+    testHassle.parser.Parse("<test>")
+    if result != "test user data" {
+        t.Error( "not equal" )
+    }
+
+    testHassle.parser.SetUserData(nil)
+    testHassle.parser.Parse( "<test>" )
+    if result != "empty" {
+        t.Errorf( "not equal:%s", result )
+    }
+    testHassle.parser.Parse("</test>")
+    if result != "empty" {
+        t.Errorf( "not equal:%s", result )
+    }
+    testHassle.parser.Parse("</test>")
+    if result != "empty" {
+        t.Error( "not equal" )
+    }
+
+    err := testHassle.parser.Parse("<test>")
+    if err != nil {
+        log.Println( err )
+    }
 }
 
 func TestNewXmlParser(t *testing.T) {
