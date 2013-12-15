@@ -128,6 +128,46 @@ func TestUserData( t *testing.T ) {
     }
 }
 
+func TestStatus(t *testing.T) {
+    testHassle := new(xmlParserTestHassle)
+    testHassle.SetupHassle()
+    defer testHassle.DestroyHassle()
+
+    parseStatus := testHassle.parser.Status()
+    if parseStatus != Initialized {
+        t.Errorf("incorrect status: %d\n", parseStatus)
+    }
+
+    startEleHandler := func(ud interface{}, name string, attrs map[string]string) {
+    }
+
+    endEleHandler := func(ud interface{}, name string) {
+        /*
+        parser, ok := ud.(*XmlParser)
+        if !ok {
+            t.Errorf("user data type mismatch\n")
+        }
+
+        parser.Stop(true)
+        */
+    }
+
+    testHassle.parser.SetUserData(testHassle.parser)
+    testHassle.parser.SetStartElementHandler(startEleHandler)
+    testHassle.parser.SetEndElementHandler(endEleHandler)
+    testHassle.parser.Parse("<test>")
+    parseStatus = testHassle.parser.Status()
+    if parseStatus != Parsing {
+        t.Errorf("incorrect status: %s\n", testHassle.parser.StatusString())
+    }
+
+    testHassle.parser.Parse("</test>")
+    parseStatus = testHassle.parser.Status()
+    if parseStatus != Finished {
+        t.Errorf("incorrect status: %s\n", testHassle.parser.StatusString())
+    }
+}
+
 func TestNewXmlParser(t *testing.T) {
     parser := NewXmlParser()
     if parser == nil {
