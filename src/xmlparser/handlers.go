@@ -8,6 +8,18 @@ extern void hookStartElementHandler(XML_Parser parser);
 extern void unhookStartElementHandler(XML_Parser parser);
 extern void hookEndElementHandler(XML_Parser parser);
 extern void unhookEndElementHandler(XML_Parser parser);
+extern void hookCharacterDataHandler(XML_Parser parser);
+extern void unhookCharacterDataHandler(XML_Parser parser);
+extern void hookPIHandler(XML_Parser parser);
+extern void unhookPIHandler(XML_Parser parser);
+extern void hookCommentHandler(XML_Parser parser);
+extern void unhookCommentHandler(XML_Parser parser);
+extern void hookStartCDataSectionHandler(XML_Parser parser);
+extern void unhookStartCDataSectionHandler(XML_Parser parser);
+extern void hookEndCDataSectionHandler(XML_Parser parser);
+extern void unhookEndCDataSectionHandler(XML_Parser parser);
+extern void hookDefaultHandler(XML_Parser parser);
+extern void unhookDefaultHandler(XML_Parser parser);
 */
 import "C"
 import (
@@ -21,6 +33,12 @@ import (
 const (
     start_ele_handler = "start_ele_handler"
     end_ele_handler = "end_ele_handler"
+    character_data_handler = "character_data_handler"
+    processing_inst_handler = "processing_inst_handler"
+    comment_handler = "comment_handler"
+    start_cdata_section_handler = "start_cdata_section_handler"
+    end_cdata_section_handler = "end_cdata_section_handler"
+    default_handler = "default_handler"
 )
 
 type NullHandler struct {
@@ -30,6 +48,15 @@ var null_handler = NullHandler{}
 
 type StartElementHandler func(interface{}, string, map[string]string)
 type EndElementHandler func(interface{}, string)
+type CharacterDataHandler func(interface{}, string)
+type PIHandler func(interface{}, string, string)
+type CommentHandler func(interface{}, string)
+type StartCDataSectionHandler func(interface{})
+type EndCDataSectionHandler func(interface{})
+type DefaultHandler func(interface{}, string)
+//type StartNSDeclHandler func(interface{}, string, string)
+//type EndNSDeclHandler func(interface{}, string)
+
 
 type XmlParserHooker struct {
     handlerMap map[string]interface{}
@@ -91,6 +118,134 @@ func InternalStartElementHandler(userData unsafe.Pointer,  name *C.XML_Char, att
     finalHandler(ud.data, C.GoString(cname), attrsMap)
 }
 
+func convertCBytesArrayToGoString( bytesPtr *C.char, length C.int) string {
+    var tmpSlice []byte
+    sliceHeader := (*reflect.SliceHeader)(unsafe.Pointer(&tmpSlice))
+    sliceHeader.Cap = int(length)
+    sliceHeader.Len = int(length)
+    sliceHeader.Data = uintptr(unsafe.Pointer(bytesPtr))
+
+    return string(tmpSlice[:int(length)])
+}
+
+//export InternalCharacterDataHandler
+func InternalCharacterDataHandler(userData unsafe.Pointer, data *C.XML_Char, length C.int) {
+    ud := (*userDataStructure)(userData)
+    cdata := (*C.char)(data)
+    goString := convertCBytesArrayToGoString(cdata, length)
+
+    handler, ok := ud.hooker.handlerMap[character_data_handler]
+    if !ok || handler == nil {
+        log.Println("character data handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(CharacterDataHandler)
+    if !ok {
+        log.Println("character data handler type error")
+        return;
+    }
+
+    finalHandler(ud.data, goString)
+}
+
+//export InternalProcessingInstHandler
+func InternalProcessingInstHandler(userData unsafe.Pointer, target *C.XML_Char, data *C.XML_Char) {
+    ud := (*userDataStructure)(userData)
+    ctarget := (*C.char)(target)
+    cdata := (*C.char)(data)
+
+    handler, ok := ud.hooker.handlerMap[processing_inst_handler]
+    if !ok || handler == nil {
+        log.Println("processing inst handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(PIHandler)
+    if !ok {
+        log.Println("processing inst handler type error")
+        return
+    }
+
+    finalHandler(ud.data, C.GoString(ctarget), C.GoString(cdata))
+}
+
+//export InternalStartCDataSectionHandler
+func InternalStartCDataSectionHandler(userData unsafe.Pointer) {
+    ud := (*userDataStructure)(userData)
+    handler, ok := ud.hooker.handlerMap[start_cdata_section_handler]
+    if !ok || handler == nil {
+        log.Println("start cdata section handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(StartCDataSectionHandler)
+    if !ok {
+        log.Println("start cdata section handler type error")
+        return
+    }
+
+    finalHandler(ud.data)
+}
+
+//export InternalEndCDataSectionHandler
+func InternalEndCDataSectionHandler(userData unsafe.Pointer) {
+    ud := (*userDataStructure)(userData)
+    handler, ok := ud.hooker.handlerMap[end_cdata_section_handler]
+    if !ok || handler == nil {
+        log.Println("end cdata section handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(EndCDataSectionHandler)
+    if !ok {
+        log.Println("end cdata section handler type error")
+        return
+    }
+
+    finalHandler(ud.data)
+}
+
+//export InternalCommentHandler
+func InternalCommentHandler(userData unsafe.Pointer, data *C.XML_Char) {
+    ud := (*userDataStructure)(userData)
+    cdata := (*C.char)(data)
+    handler, ok := ud.hooker.handlerMap[comment_handler]
+    if !ok || handler == nil {
+        log.Println("comment handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(CommentHandler)
+    if !ok {
+        log.Println("comment handler type error")
+        return
+    }
+
+    finalHandler(ud.data, C.GoString(cdata))
+}
+
+//export InternalDefaultHandler
+func InternalDefaultHandler(userData unsafe.Pointer, data *C.XML_Char, length C.int) {
+    ud := (*userDataStructure)(userData)
+    cdata := (*C.char)(data)
+    goString := convertCBytesArrayToGoString(cdata, length)
+
+    handler, ok := ud.hooker.handlerMap[default_handler]
+    if !ok || handler == nil {
+        log.Println("default handler not defined")
+        return
+    }
+
+    finalHandler, ok := handler.(DefaultHandler)
+    if !ok {
+        log.Println("default handler type error")
+        return
+    }
+
+    finalHandler(ud.data, goString)
+}
+
 func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error {
     if parser == nil {
         return errors.New( "parameters cannot be nil" )
@@ -110,6 +265,13 @@ func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error 
         case EndElementHandler:
             C.unhookEndElementHandler(parser.parserHandler)
             key = end_ele_handler
+        case CharacterDataHandler:
+        case PIHandler:
+        case CommentHandler:
+        case StartCDataSectionHandler:
+        case EndCDataSectionHandler:
+        case DefaultHandler:
+        //TODO:
         default:
             return errors.New( "unsupported handler type" )
         }
@@ -123,6 +285,13 @@ func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error 
         case EndElementHandler:
             C.hookEndElementHandler(parser.parserHandler)
             key = end_ele_handler
+        case CharacterDataHandler:
+        case PIHandler:
+        case CommentHandler:
+        case StartCDataSectionHandler:
+        case EndCDataSectionHandler:
+        case DefaultHandler:
+        //TODO:
         default:
             return errors.New( "unsupported handler type" )
         }
