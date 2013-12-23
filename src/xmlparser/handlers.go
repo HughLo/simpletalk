@@ -246,6 +246,8 @@ func InternalDefaultHandler(userData unsafe.Pointer, data *C.XML_Char, length C.
     finalHandler(ud.data, goString)
 }
 
+//Hook hook and unhook the callback specified by handler. If handler is nil, unhook will
+//be performed. Otherwise, hook is performed.
 func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error {
     if parser == nil {
         return errors.New( "parameters cannot be nil" )
@@ -266,12 +268,23 @@ func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error 
             C.unhookEndElementHandler(parser.parserHandler)
             key = end_ele_handler
         case CharacterDataHandler:
+            C.unhookCharacterDataHandler(parser.parserHandler)
+            key = character_data_handler
         case PIHandler:
+            C.unhookPIHandler(parser.parserHandler)
+            key = processing_inst_handler
         case CommentHandler:
+            C.unhookCommentHandler(parser.parserHandler)
+            key = comment_handler
         case StartCDataSectionHandler:
+            C.unhookStartCDataSectionHandler(parser.parserHandler)
+            key = start_cdata_section_handler
         case EndCDataSectionHandler:
+            C.unhookEndCDataSectionHandler(parser.parserHandler)
+            key = end_cdata_section_handler
         case DefaultHandler:
-        //TODO:
+            C.unhookDefaultHandler(parser.parserHandler)
+            key = default_handler
         default:
             return errors.New( "unsupported handler type" )
         }
@@ -286,12 +299,23 @@ func (self *XmlParserHooker) Hook(parser *XmlParser, handler interface{}) error 
             C.hookEndElementHandler(parser.parserHandler)
             key = end_ele_handler
         case CharacterDataHandler:
+            C.hookCharacterDataHandler(parser.parserHandler)
+            key = character_data_handler
         case PIHandler:
+            C.hookPIHandler(parser.parserHandler)
+            key = processing_inst_handler
         case CommentHandler:
+            C.hookCommentHandler(parser.parserHandler)
+            key = comment_handler
         case StartCDataSectionHandler:
+            C.hookStartCDataSectionHandler(parser.parserHandler)
+            key = start_cdata_section_handler
         case EndCDataSectionHandler:
+            C.hookEndCDataSectionHandler(parser.parserHandler)
+            key = end_cdata_section_handler
         case DefaultHandler:
-        //TODO:
+            C.hookDefaultHandler(parser.parserHandler)
+            key = default_handler
         default:
             return errors.New( "unsupported handler type" )
         }

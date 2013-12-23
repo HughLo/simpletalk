@@ -65,6 +65,17 @@ func (self *XmlParser) checkEncodingString( encoding string ) bool {
     return false
 }
 
+func (self *XmlParser) callHook(handlerName string, handler interface{}) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = handlerName
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
+
+}
+
+//Create create the parser to handle the xml stream encoded by encoding
 func (self *XmlParser) Create( encoding string ) error {
     if !self.checkEncodingString( encoding ) {
         return fmt.Errorf("encoding %s is not supported", encoding)
@@ -77,6 +88,7 @@ func (self *XmlParser) Create( encoding string ) error {
     return nil
 }
 
+//Reset reset the parser
 func (self *XmlParser) Reset( encoding string ) error {
     if !self.checkEncodingString(encoding) {
         return fmt.Errorf("encoding %s is not supported", encoding)
@@ -91,12 +103,14 @@ func (self *XmlParser) Reset( encoding string ) error {
     return nil
 }
 
+//Free free the parser
 func (self *XmlParser) Free() {
     if self.parserHandler != nil {
         C.XML_ParserFree( self.parserHandler )
     }
 }
 
+//Parse parser the content specifed by data
 func (self *XmlParser) Parse( data string ) error {
     if self.parserHandler == nil {
         return errors.New( "invalid parser handler" )
@@ -113,6 +127,7 @@ func (self *XmlParser) Parse( data string ) error {
     return nil
 }
 
+//Stop stop the parser
 func (self *XmlParser) Stop(resumable bool) error {
     if self.parserHandler == nil {
         return errors.New("invalid parser handler")
@@ -130,11 +145,13 @@ func (self *XmlParser) Stop(resumable bool) error {
     return nil
 }
 
+//SetUserData set user data which will be passed as the first argument of callbacks
 func (self *XmlParser) SetUserData(data interface{}) {
     self.pinUserData.data = data
     C.XML_SetUserData(self.parserHandler, unsafe.Pointer(self.pinUserData))
 }
 
+//SetStartElementHandler set start element handler
 func (self *XmlParser) SetStartElementHandler(handler StartElementHandler) error {
     var handlerData interface{} = handler
     if handler == nil {
@@ -144,6 +161,7 @@ func (self *XmlParser) SetStartElementHandler(handler StartElementHandler) error
     return self.hooker.Hook(self, handlerData)
 }
 
+//SetEndElementHandler set end element handler
 func (self *XmlParser) SetEndElementHandler(handler EndElementHandler) error {
     var handlerData interface{} = handler
     if handler == nil {
@@ -151,6 +169,144 @@ func (self *XmlParser) SetEndElementHandler(handler EndElementHandler) error {
         handlerData = null_handler
     }
     return self.hooker.Hook(self, handlerData)
+}
+
+//SetCharacterDataHandler set handler of characters
+func (self *XmlParser) SetCharacterDataHandler(handler CharacterDataHandler) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = character_data_handler
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
+}
+
+//SetProcessingInstHandler set processing instruction handler
+func (self *XmlParser) SetProcessingInstHandler(handler PIHandler) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = processing_inst_handler
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
+}
+
+//SetCommentHandler set processing comment handler
+func (self *XmlParser) SetCommentHandler(handler CommentHandler) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = comment_handler
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
+}
+
+//SetStartCDataSectionHandler set handler of start CDATA section
+func (self *XmlParser) SetStartCDataSectionHandler(handler StartCDataSectionHandler) error {
+    var handlerData interface{} = handler
+    if handler == nil {
+        null_handler.name = start_cdata_section_handler
+        handlerData = null_handler
+    }
+    return self.hooker.Hook(self, handlerData)
+}
+
+//SetEndCDataSectionHandler set handler of end CDATA section
+func (self *XmlParser) SetEndCDataSectionHandler(handler EndCDataSectionHandler) error {
+    return self.callHook(end_cdata_section_handler, handler)
+}
+
+//SetDefaultHandler set default handler
+func (self *XmlParser) SetDefaultHandler(handler DefaultHandler) error {
+    return self.callHook(default_handler, handler)
+}
+
+//SetHandlers set all handlers at one time
+func (self *XmlParser) SetHandlers(handlers *map[string]interface{}) error {
+    if handlers == nil {
+        return errors.New("invalid parameters")
+    }
+
+    for k, v := range *handlers {
+        switch k {
+        case start_ele_handler:
+            var trueHandler StartElementHandler
+            if v != nil {
+                trueHandler, ok := v.(StartElementHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetStartElementHandler(trueHandler)
+        case end_ele_handler:
+            var trueHandler EndElementHandler
+            if v!= nil {
+                trueHandler, ok := v.(EndElementHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetEndElementHandler(trueHandler)
+        case character_data_handler:
+            var trueHandler CharacterDataHandler
+            if v!= nil {
+                trueHandler, ok := v.(CharacterDataHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetCharacterDataHandler(trueHandler)
+        case processing_inst_handler:
+            var trueHandler PIHandler
+            if v!= nil {
+                trueHandler, ok := v.(PIHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetProcessingInstHandler(trueHandler)
+        case comment_handler:
+            var trueHandler CommentHandler
+            if v!= nil {
+                trueHandler, ok := v.(CommentHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetCommentHandler(trueHandler)
+        case start_cdata_section_handler:
+            var trueHandler StartCDataSectionHandler
+            if v!= nil {
+                trueHandler, ok := v.(StartCDataSectionHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetStartCDataSectionHandler(trueHandler)
+        case end_cdata_section_handler:
+            var trueHandler EndCDataSectionHandler
+            if v!= nil {
+                trueHandler, ok := v.(EndCDataSectionHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetEndCDataSectionHandler(trueHandler)
+        case default_handler:
+            var trueHandler DefaultHandler
+            if v!= nil {
+                trueHandler, ok := v.(DefaultHandler)
+                if !ok || trueHandler == nil {
+                    return errors.New("handler type mismatch")
+                }
+            }
+            self.SetDefaultHandler(trueHandler)
+        default:
+            return errors.New("unsupported handler type")
+        }
+    }
+
+    return nil
 }
 
 func (self *XmlParser) Status() int {
